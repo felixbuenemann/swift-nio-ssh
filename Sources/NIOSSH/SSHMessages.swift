@@ -694,14 +694,20 @@ extension ByteBuffer {
                     return nil
                 }
 
-                if NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(algorithmName.readableBytesView) }
-                ) {
+                let isRSAAlgorithm = RSASignatureAlgorithm(algorithmName: algorithmName.readableBytesView) != nil
+                if NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(algorithmName.readableBytesView) }) || isRSAAlgorithm {
                     // This is a known algorithm, we can load the key.
                     guard let publicKey = try keyBytes.readSSHHostKey() else {
                         return nil
                     }
 
-                    guard algorithmName.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+                    // For RSA, the wire algorithm name (rsa-sha2-256, rsa-sha2-512,
+                    // ssh-rsa) differs from the key prefix (always "ssh-rsa") per
+                    // RFC 8332. Allow any RSA signature algorithm name to match an
+                    // ssh-rsa key.
+                    let directMatch = algorithmName.readableBytesView.elementsEqual(publicKey.keyPrefix)
+                    let rsaMatch = isRSAAlgorithm && publicKey.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix)
+                    guard directMatch || rsaMatch else {
                         throw NIOSSHError.invalidSSHMessage(reason: "algorithm and key mismatch in user auth request")
                     }
 
@@ -771,7 +777,8 @@ extension ByteBuffer {
                 return nil
             }
 
-            guard NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(publicKeyType.readableBytesView) })
+            let isRSAAlgorithm = RSASignatureAlgorithm(algorithmName: publicKeyType.readableBytesView) != nil
+            guard NIOSSHPublicKey.knownAlgorithms.contains(where: { $0.elementsEqual(publicKeyType.readableBytesView) }) || isRSAAlgorithm
             else {
                 throw NIOSSHError.invalidSSHMessage(reason: "unsupported key type in PK_OK")
             }
@@ -780,8 +787,11 @@ extension ByteBuffer {
                 return nil
             }
 
-            // Validate consistency here.
-            guard publicKeyType.readableBytesView.elementsEqual(publicKey.keyPrefix) else {
+            // Validate consistency here. RSA permits the wire algorithm name
+            // to differ from the key prefix per RFC 8332.
+            let directMatch = publicKeyType.readableBytesView.elementsEqual(publicKey.keyPrefix)
+            let rsaMatch = isRSAAlgorithm && publicKey.keyPrefix.elementsEqual(NIOSSHPublicKey.rsaPublicKeyPrefix)
+            guard directMatch || rsaMatch else {
                 throw NIOSSHError.invalidSSHMessage(reason: "inconsistent key type")
             }
 
