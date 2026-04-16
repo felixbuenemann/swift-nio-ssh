@@ -309,6 +309,18 @@ public enum SSHChannelRequestEvent: Sendable {
             self.signal = signal
         }
     }
+
+    /// Request to enable SSH agent forwarding on this session channel.
+    /// The client sends this to tell the server to set up an agent
+    /// forwarding socket. The server will then open inbound channels
+    /// of type `auth-agent@openssh.com` for each agent connection.
+    public struct AgentForwardRequest: Hashable, Sendable {
+        public var wantReply: Bool
+
+        public init(wantReply: Bool = true) {
+            self.wantReply = wantReply
+        }
+    }
 }
 
 extension SSHChannelRequestEvent {
@@ -350,6 +362,8 @@ extension SSHChannelRequestEvent {
             return LocalFlowControlRequest(clientCanDo: clientCanDo)
         case .signal(let signalName):
             return SignalRequest(signal: signalName)
+        case .authAgentReq:
+            return AgentForwardRequest(wantReply: message.wantReply)
         case .unknown:
             return nil
         }
@@ -470,6 +484,15 @@ extension SSHMessage {
         let message = SSHMessage.ChannelRequestMessage(
             recipientChannel: recipientChannel,
             type: .signal(event.signal),
+            wantReply: event.wantReply
+        )
+        self = .channelRequest(message)
+    }
+
+    init(_ event: SSHChannelRequestEvent.AgentForwardRequest, recipientChannel: UInt32) {
+        let message = SSHMessage.ChannelRequestMessage(
+            recipientChannel: recipientChannel,
+            type: .authAgentReq,
             wantReply: event.wantReply
         )
         self = .channelRequest(message)

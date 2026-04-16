@@ -319,6 +319,7 @@ extension SSHMessage {
             case windowChange(WindowChange)
             case xonXoff(Bool)
             case signal(String)
+            case authAgentReq
             case unknown
         }
 
@@ -1136,6 +1137,8 @@ extension ByteBuffer {
                     return nil
                 }
                 type = .signal(signalName)
+            case "auth-agent-req@openssh.com":
+                type = .authAgentReq
             default:
                 // Unknown channel request type - consume remaining bytes to prevent
                 // parser state corruption. Without this, leftover bytes cause
@@ -1584,6 +1587,8 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHString("xon-xoff".utf8)
         case .signal:
             writtenBytes += self.writeSSHString("signal".utf8)
+        case .authAgentReq:
+            writtenBytes += self.writeSSHString("auth-agent-req@openssh.com".utf8)
         case .unknown:
             preconditionFailure()
         }
@@ -1623,6 +1628,8 @@ extension ByteBuffer {
             writtenBytes += self.writeSSHBoolean(clientCanDo)
         case .signal(let name):
             writtenBytes += self.writeSSHString(name.utf8)
+        case .authAgentReq:
+            break  // no additional payload
         case .unknown:
             preconditionFailure()
         }
