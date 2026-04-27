@@ -35,6 +35,15 @@ public enum SSHChannelType: Equatable, Sendable {
 
     /// "Forwarded TCP/IP" is a connection that was accepted from a listening socket and is being forwarded to the client.
     case forwardedTCPIP(ForwardedTCPIP)
+
+    /// `auth-agent@openssh.com`: an inbound connection from the
+    /// remote sshd to the client's forwarded SSH agent. Opened by
+    /// sshd (after a successful `auth-agent-req@openssh.com`)
+    /// whenever a process on the remote connects to the
+    /// `SSH_AUTH_SOCK` unix socket. Carries no extra payload —
+    /// the channel itself acts as a transport for the OpenSSH
+    /// agent wire protocol.
+    case forwardedAuthAgent
 }
 
 extension SSHChannelType {
@@ -129,6 +138,8 @@ extension SSHChannelType {
                     originatorAddress: message.originatorAddress
                 )
             )
+        case .forwardedAuthAgent:
+            self = .forwardedAuthAgent
         }
     }
 }
@@ -154,6 +165,8 @@ extension SSHMessage.ChannelOpenMessage.ChannelType {
                     originatorAddress: data.originatorAddress
                 )
             )
+        case .forwardedAuthAgent:
+            self = .forwardedAuthAgent
         }
     }
 }

@@ -221,6 +221,11 @@ extension SSHMessage {
             case session
             case forwardedTCPIP(ForwardedTCPIP)
             case directTCPIP(DirectTCPIP)
+            // `auth-agent@openssh.com` — sshd opens this back to us
+            // whenever a process on the remote connects to the
+            // forwarded SSH_AUTH_SOCK. No payload beyond the
+            // channel-open header.
+            case forwardedAuthAgent
         }
 
         struct ForwardedTCPIP: Equatable {
@@ -922,6 +927,13 @@ extension ByteBuffer {
                     )
                 )
 
+            case "auth-agent@openssh.com":
+                // sshd opens this back to the client when an
+                // agent-forwarding socket connection arrives on
+                // the remote. There is no payload after the four
+                // common channel-open header fields.
+                type = .forwardedAuthAgent
+
             default:
                 throw NIOSSHError.unknownPacketType(diagnostic: "Channel request with \(typeRawValue)")
             }
@@ -1480,6 +1492,9 @@ extension ByteBuffer {
 
         case .directTCPIP:
             writtenBytes += self.writeSSHString("direct-tcpip".utf8)
+
+        case .forwardedAuthAgent:
+            writtenBytes += self.writeSSHString("auth-agent@openssh.com".utf8)
         }
 
         writtenBytes += self.writeInteger(message.senderChannel)
@@ -1487,7 +1502,9 @@ extension ByteBuffer {
         writtenBytes += self.writeInteger(message.maximumPacketSize)
 
         switch message.type {
-        case .session:
+        case .session, .forwardedAuthAgent:
+            // Both header-only types: no extra payload after the
+            // common sender / window / max-packet fields.
             break
 
         case .forwardedTCPIP(let data):
